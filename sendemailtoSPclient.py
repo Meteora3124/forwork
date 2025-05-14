@@ -6,12 +6,13 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+import mimetypes
 import os
 import urllib.parse
 from openpyxl.utils.dataframe import dataframe_to_rows
 
 # ================== 配置参数 ==================
-pricingdate = pd.to_datetime("2025-5-8")
+pricingdate = pd.to_datetime("2025-05-13")
 sender = "fdi_trade_service@xyzq.com.cn"
 email_body = """请以此为准，谢谢！
 您好，估值文件如附，请查收，如对估值报告有疑问，请联系：fdi_trade_service@xyzq.com.cn，谢谢！
@@ -67,8 +68,8 @@ center_alignment = Alignment(horizontal='center', wrap_text=True)
 
 for customer in customerlist:
     customer_data = modifytrade[modifytrade['CustomerName'] == customer]
-    # receiver = ["fdi_derivs_trading@xyzq.com.cn"] + customer_data.iloc[0]['MailAddress'].split(',')
-    receiver = ["lvjiawei@xyzq.com.cn"]
+    receiver = ["fdi_derivs_trading@xyzq.com.cn"] + customer_data.iloc[0]['MailAddress'].split(',')
+    #receiver = ["jiawei5990@163.com"]
 
     # ========== 处理估值报告 ==========
     if customer_data.iloc[0]['ModifyType'] == 2:
@@ -86,9 +87,7 @@ for customer in customerlist:
         i_values = [cell.value for cell in i_col[start_row - 1:end_row]]
         modified_pv = np.maximum(customer_data['annualizedPV'].values, raw_pv_list)
         modified_nav = np.round(modified_pv / i_values, 4)
-        # raw_pv = ws['N5'].value
-        # modified_pv = max(customer_data['annualizedPV'].iloc[0], raw_pv)
-        # modified_nav = round(modified_pv / ws['I5'].value, 4)
+
         for idx, (pv, nav) in enumerate(zip(modified_pv, modified_nav), start=start_row):
             ws[f'N{idx}'] = pv
             ws[f'O{idx}'] = nav
@@ -100,7 +99,7 @@ for customer in customerlist:
         raw_wb = openpyxl.load_workbook(file_path)
         raw_ws1 = raw_wb.worksheets[0]
         raw_ws2 = raw_wb.worksheets[1]
-        start_row=3
+        start_row = 3
         if customer_data.iloc[0]['ModifyType'] == 1:
             # 加载模板文件
             wb = openpyxl.load_workbook("D:\\workingdirectory\\valuationreport_options_modified.xlsx")
@@ -137,10 +136,7 @@ for customer in customerlist:
             for row_idx, row in enumerate(dataframe_to_rows(tradedata[[*range(20)]], index=False, header=False),
                                           start=start_row):
                 ws2.append(row)
-            #for col in range(1, 20):  # 处理19列
-            #    cell = ws2.cell(row=last_row, column=col)
-             #   cell.border = thin_border
-             #   cell.alignment = center_alignment
+
 
             # 保存文件
             wb.save(file_path)
@@ -158,14 +154,24 @@ for customer in customerlist:
     msg = MIMEMultipart()
     msg['From'] = sender
     msg['To'] = ", ".join(receiver)
-    msg['Subject'] = report_name
+    msg['Subject'] = report_name.split('.')[0]
     msg.attach(MIMEText(email_body, 'plain', 'utf-8'))
 
     with open(file_path, 'rb') as f:
         full_filename = os.path.basename(file_path)  # 带扩展名的文件名
-        part = MIMEApplication(f.read(), Name=full_filename)
-        encoded_filename = f"utf-8''{urllib.parse.quote(full_filename)}"
-        part['Content-Disposition'] = f'attachment; filename="{report_name}"'
+        mime_type, _ = mimetypes.guess_type(full_filename)
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+        part = MIMEApplication(f.read(), _subtype=mime_type.split('/')[-1])
+        encoded_filename = urllib.parse.quote(full_filename)
+        safe_filename = urllib.parse.quote(full_filename, safe='')
+        part['Content-Disposition'] = (
+            f'attachment; '
+            f'filename="{safe_filename}"; '
+            f'filename*=utf-8\'\'{encoded_filename}'
+        )
+        part.add_header('Content-Type', mime_type, name=encoded_filename)
+        #part['Content-Disposition'] = f'attachment; filename="{report_name}"'
         msg.attach(part)
 
     try:
@@ -176,3 +182,5 @@ for customer in customerlist:
             print(f"邮件发送成功：{customer}")
     except Exception as e:
         print(f"邮件发送失败（{customer}）：{str(e)}")
+
+

@@ -10,12 +10,12 @@ import mimetypes
 import os
 import urllib.parse
 from openpyxl.utils.dataframe import dataframe_to_rows
+from email.header import make_header
 
 # ================== 配置参数 ==================
-pricingdate = pd.to_datetime("2025-05-13")
+pricingdate = pd.to_datetime("2025-05-15")
 sender = "fdi_trade_service@xyzq.com.cn"
-email_body = """请以此为准，谢谢！
-您好，估值文件如附，请查收，如对估值报告有疑问，请联系：fdi_trade_service@xyzq.com.cn，谢谢！
+email_body = """您好，估值文件如附，请查收，如对估值报告有疑问，请联系：fdi_trade_service@xyzq.com.cn，谢谢！
 免责声明：
 
 1、兴业证券股份有限公司（简称“兴业证券”）依据商业合理原则，基于我方内部模型计算得出相关衍生品合约于相应日期的估值报告（统称为“估值报告”），该估值报告计算结果仅供贵方参考，并非兴业证券对贵方所持相关衍生品合约权益价值的保证，亦不代表兴业证券对贵方是否应当追加保证金（包括追加预付金等）以及追加保证金金额作出任何意思表示。若贵方在相关衍生品合约下需追加保证金，兴业证券将另行通知贵方。
@@ -68,8 +68,8 @@ center_alignment = Alignment(horizontal='center', wrap_text=True)
 
 for customer in customerlist:
     customer_data = modifytrade[modifytrade['CustomerName'] == customer]
-    receiver = ["fdi_derivs_trading@xyzq.com.cn"] + customer_data.iloc[0]['MailAddress'].split(',')
-    #receiver = ["jiawei5990@163.com"]
+    #receiver = ["fdi_derivs_trading@xyzq.com.cn"] + customer_data.iloc[0]['MailAddress'].split(',')
+    receiver = ["lvjiawei@xyzq.com.cn"]
 
     # ========== 处理估值报告 ==========
     if customer_data.iloc[0]['ModifyType'] == 2:
@@ -159,18 +159,28 @@ for customer in customerlist:
 
     with open(file_path, 'rb') as f:
         full_filename = os.path.basename(file_path)  # 带扩展名的文件名
-        mime_type, _ = mimetypes.guess_type(full_filename)
-        if not mime_type:
-            mime_type = 'application/octet-stream'
-        part = MIMEApplication(f.read(), _subtype=mime_type.split('/')[-1])
-        encoded_filename = urllib.parse.quote(full_filename)
-        safe_filename = urllib.parse.quote(full_filename, safe='')
-        part['Content-Disposition'] = (
-            f'attachment; '
-            f'filename="{safe_filename}"; '
-            f'filename*=utf-8\'\'{encoded_filename}'
-        )
-        part.add_header('Content-Type', mime_type, name=encoded_filename)
+        #mime_type, _ = mimetypes.guess_type(full_filename)
+        #if not mime_type:
+           # mime_type = 'application/octet-stream'
+        part = MIMEApplication(f.read(), Name=report_name)
+        encoded_filename = urllib.parse.quote(report_name)
+        filename_header = f"utf-8''{encoded_filename}"
+        part['Content-Disposition'] = f'attachment; filename="{report_name}"; filename*={filename_header}'
+        part.add_header('Content-Disposition', 'attachment',
+                              filename=make_header([(full_filename, 'utf-8')]).encode('utf-8'))
+        #part.add_header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        #                name=encoded_filename)
+        #part["Content-Type"] = 'application/octet-stream'
+        #part.add_header('Content-Disposition', 'attachment',
+        #                filename=make_header([(report_name, 'utf-8')]).encode('utf-8'))
+        #encoded_filename = urllib.parse.quote(full_filename)
+        #safe_filename = urllib.parse.quote(full_filename, safe='')
+        #part['Content-Disposition'] = (
+        #    f'attachment; '
+         #   f'filename="{safe_filename}"; '
+         #   f'filename*=utf-8\'\'{encoded_filename}'
+        #)
+        #part.add_header('Content-Type', mime_type, name=encoded_filename)
         #part['Content-Disposition'] = f'attachment; filename="{report_name}"'
         msg.attach(part)
 
